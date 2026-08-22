@@ -7,6 +7,9 @@
  * Both pipelines expose the same shape:
  *   { kind, renderer, lowPowerMode, render(), setSize(w,h),
  *     setEnhanced(bool), isEnhanced(), dispose() }
+ * The WebGPU pipeline additionally exposes onDeviceLost(callback) — a real
+ * failure mode (GPU driver crash / OS-level device reset) that the WebGL
+ * pipeline has no equivalent of; callers should check for it before use.
  *
  * Each factory also does its own image-based-lighting (PMREM) setup on the
  * scene it's given, because PMREMGenerator comes in a WebGL-flavored and a
@@ -179,10 +182,10 @@ export async function createWebGPUPipeline({ canvas, scene, camera, isFallbackAd
     renderer,
     lowPowerMode,
     render() {
-      // Fire-and-forget, same as the WebGL pipeline's composer.render()
-      // call site — the caller's requestAnimationFrame loop doesn't need
-      // to wait for GPU completion to schedule the next frame.
-      pipeline.renderAsync();
+      // Synchronous render() is the current API (renderAsync() was
+      // deprecated in r181) — safe to call directly since renderer.init()
+      // was already awaited above.
+      pipeline.render();
     },
     setSize(w, h) {
       renderer.setSize(w, h, false);
@@ -193,6 +196,16 @@ export async function createWebGPUPipeline({ canvas, scene, camera, isFallbackAd
     },
     isEnhanced() {
       return enhanced;
+    },
+    /**
+     * Registers a callback for a lost GPU device (driver crash, OS-level
+     * GPU reset, laptop GPU switch, etc.) — WebGPURenderer can't recover
+     * from this on its own. Real hardware testing surfaced this as a real
+     * failure mode (not just a theoretical one), so callers should treat
+     * it as "fall back to WebGL", not just log it.
+     */
+    onDeviceLost(callback) {
+      renderer.onDeviceLost = callback;
     },
     dispose() {
       renderer.dispose();

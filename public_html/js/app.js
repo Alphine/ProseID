@@ -8,15 +8,18 @@ import { enableTilt } from "./tilt.js";
 import { probeWebGPU, createWebGLPipeline, createWebGPUPipeline } from "./renderBackend.js";
 
 // ---------------------------------------------------------------------------
-// Render backend choice — WebGL (default, battle-tested) or WebGPU (opt-in,
-// see the settings/GPU toolbar toggle further down). Decided once here at
-// load time rather than hot-swapped mid-session; see renderBackend.js's
-// top comment for why. "auto" tries WebGPU only when the adapter looks like
-// real hardware (not a software fallback) and falls back to WebGL silently
-// otherwise — same spirit as the existing lowPowerMode software-rasterizer
-// detection, just one layer earlier.
+// Render backend choice — WebGL (default) or WebGPU (experimental, opt-in
+// only — see the GPU toolbar toggle further down). "Auto" resolves to
+// WebGL, not WebGPU: real-world testing surfaced a hard GPU driver crash
+// (DXGI_ERROR_DEVICE_REMOVED / WebGPU "Device Lost") on at least one
+// device, which is a far worse failure mode than a slow frame rate — a
+// software-adapter or sustained-low-FPS check can't predict a driver
+// crash. So WebGPU is now something a user turns on deliberately, not
+// something that silently activates itself. Decided once at load time
+// rather than hot-swapped mid-session; see renderBackend.js's top comment
+// for why.
 // ---------------------------------------------------------------------------
-const BACKEND_KEY = "p3d_render_backend"; // 'auto' | 'webgl' | 'webgpu'
+const BACKEND_KEY = "p3d_render_backend"; // 'auto' | 'webgl' | 'webgpu' — 'auto' behaves the same as 'webgl'
 function getBackendPref() {
   return localStorage.getItem(BACKEND_KEY) || "auto";
 }
@@ -34,32 +37,47 @@ scene.fog = new THREE.Fog(0x0d0f16, 25, 70);
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
 camera.position.set(9, 7, 9);
 
+// Recovery path shared by both the sustained-low-FPS downgrade (below, in
+// animate()) and the WebGPU device-lost handler (wired after the pipeline
+// exists) — same "give up on WebGPU, go back to WebGL" action either way.
+function recoverToWebGL(reason) {
+  setBackendPref("webgl");
+  toast(reason);
+  setTimeout(() => location.reload(), 1400);
+}
+
 async function bootstrapPipeline() {
   const pref = getBackendPref();
-  let wantWebGPU = false;
-  let gpuProbe = { usable: false, isFallback: false };
-  if (pref === "webgpu" || pref === "auto") {
-    gpuProbe = await probeWebGPU();
-    wantWebGPU = gpuProbe.usable && !gpuProbe.isFallback;
+  if (pref !== "webgpu") {
+    return createWebGLPipeline({ canvas, scene, camera });
   }
-
-  if (wantWebGPU) {
+  const gpuProbe = await probeWebGPU();
+  if (gpuProbe.usable && !gpuProbe.isFallback) {
     try {
       return await createWebGPUPipeline({ canvas, scene, camera, isFallbackAdapter: gpuProbe.isFallback });
     } catch (e) {
       console.warn("WebGPU pipeline init failed, falling back to WebGL:", e);
-      if (pref === "webgpu") {
-        // User explicitly asked for WebGPU and it broke — reset the
-        // preference so a reload doesn't loop into the same failure.
-        setBackendPref("auto");
-      }
     }
   }
+  // User explicitly asked for WebGPU and it wasn't usable — reset the
+  // preference so a reload doesn't loop into the same failed attempt.
+  setBackendPref("auto");
   return createWebGLPipeline({ canvas, scene, camera });
 }
 const pipeline = await bootstrapPipeline();
 const renderer = pipeline.renderer;
 const lowPowerMode = pipeline.lowPowerMode;
+
+// If the WebGPU backend's GPU device crashes mid-session (driver bug, OS
+// GPU reset, laptop GPU switch, etc.), the renderer can't recover on its
+// own — fall back to WebGL and reload rather than leaving a frozen/dead
+// canvas with no explanation.
+if (pipeline.kind === "webgpu" && typeof pipeline.onDeviceLost === "function") {
+  pipeline.onDeviceLost((info) => {
+    console.error("WebGPU device lost:", info);
+    recoverToWebGL("Graphics driver issue detected — switching to WebGL and reloading…");
+  });
+}
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0.5, 0);
@@ -152,13 +170,11 @@ function animate(now) {
         lightToolBtn?.classList.remove("active");
         toast("Sustained low FPS — AO + glow turned off automatically. Re-enable anytime from the light icon.");
       }
-    } else if (!lowPowerMode && autoThrottled && pipeline.kind === "webgpu" && getBackendPref() === "auto") {
+    } else if (!lowPowerMode && autoThrottled && pipeline.kind === "webgpu") {
       backendDowngradeStreak = fps < AUTO_THROTTLE_FPS ? backendDowngradeStreak + 1 : 0;
       if (backendDowngradeStreak >= BACKEND_DOWNGRADE_STREAK) {
         backendDowngradeStreak = -Infinity; // fire once
-        setBackendPref("webgl");
-        toast("WebGPU is still heavy on this device — switching to WebGL and reloading…");
-        setTimeout(() => location.reload(), 1400);
+        recoverToWebGL("WebGPU is still heavy on this device — switching to WebGL and reloading…");
       }
     }
   }
@@ -691,27 +707,23 @@ if (lowPowerMode) {
 }
 
 // ---------------------------------------------------------------------------
-// Render backend toggle — cycles Auto -> WebGL -> WebGPU -> Auto. "Auto"
-// picks WebGPU only when the adapter looks like real hardware (see
-// bootstrapPipeline above); the FPS watcher in animate() also silently
-// downgrades WebGPU -> WebGL if it turns out to be heavy on this device
-// while the pref is still "auto". A picked backend can't hot-swap (see
-// renderBackend.js), so changing it here reloads the page.
+// Render backend toggle — WebGL (default) <-> WebGPU (experimental). Only
+// two effective states even though the stored value can also be "auto"
+// (legacy/default, treated identically to "webgl" — see bootstrapPipeline).
+// A picked backend can't hot-swap (see renderBackend.js), so changing it
+// here reloads the page.
 // ---------------------------------------------------------------------------
 const gpuBackendBtn = document.getElementById("gpuBackendBtn");
 function renderBackendLabel() {
-  const pref = getBackendPref();
-  const effective = pipeline.kind === "webgpu" ? "WebGPU" : "WebGL";
-  return pref === "auto" ? `GPU · Auto (${effective})` : `GPU · ${effective}`;
+  return pipeline.kind === "webgpu" ? "GPU · WebGPU (experimental)" : "GPU · WebGL";
 }
 gpuBackendBtn.textContent = renderBackendLabel();
-gpuBackendBtn.title = `Render backend — click to change. Currently: ${renderBackendLabel()}`;
+gpuBackendBtn.title = `Render backend — click to switch. Currently: ${renderBackendLabel()}. WebGPU is experimental and may be unstable on some drivers.`;
 gpuBackendBtn.classList.toggle("gpu-active", pipeline.kind === "webgpu");
 gpuBackendBtn.addEventListener("click", () => {
-  const order = ["auto", "webgl", "webgpu"];
-  const next = order[(order.indexOf(getBackendPref()) + 1) % order.length];
+  const next = pipeline.kind === "webgpu" ? "webgl" : "webgpu";
   setBackendPref(next);
-  toast(`Switching render backend to ${next === "auto" ? "Auto" : next.toUpperCase()}…`);
+  toast(`Switching render backend to ${next.toUpperCase()}…`);
   setTimeout(() => location.reload(), 500);
 });
 

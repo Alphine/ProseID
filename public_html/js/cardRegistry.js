@@ -130,11 +130,16 @@ const builders = {
     // Real refraction (not a flat alpha-blend) via transmission + water's
     // actual index of refraction — needs scene.environment (already set via
     // the PMREM room environment in app.js) to have something to refract.
+    // roughness/transmission kept short of "perfect mirror" on purpose:
+    // a near-0 roughness here catches RoomEnvironment's bright point light
+    // as a hard specular hotspot that UnrealBloomPass then blows out into
+    // a visible white blob — reported as "over lighting" on the landing
+    // hero preview, which uses the same card render logic.
     const mat = new THREE.MeshPhysicalMaterial({
       color: water,
-      roughness: 0.04,
+      roughness: 0.15,
       metalness: 0,
-      transmission: 1,
+      transmission: 0.9,
       thickness: 0.6,
       ior: 1.33,
     });
@@ -167,7 +172,7 @@ const builders = {
     const tiers = Math.max(1, Math.min(3, Math.round(params.tiers ?? 2)));
     const stoneMat = new THREE.MeshStandardMaterial({ color: 0xb7b2a6, roughness: 0.85 });
     const waterMat = new THREE.MeshPhysicalMaterial({
-      color: 0x3a8fd1, roughness: 0.1, metalness: 0, transmission: 1, thickness: 0.3, ior: 1.33,
+      color: 0x3a8fd1, roughness: 0.2, metalness: 0, transmission: 0.9, thickness: 0.3, ior: 1.33,
     });
     const group = new THREE.Group();
     const base = new THREE.Mesh(new THREE.CylinderGeometry(size, size * 1.05, 0.25, 20), stoneMat);
