@@ -21,4 +21,12 @@ return [
 
     // Which provider to prefer when both configured: 'claude' | 'openai' | 'mock'
     'PROVIDER' => 'mock',
+
+    // Two-stage categorization (SDD 3.1 caveat): an extra API call before
+    // the real tool-call that asks the model to pick relevant catalog
+    // categories first, then only exposes cards in those categories.
+    // Keep this OFF until the catalog is nearing ~80 cards — below that,
+    // tool-selection accuracy doesn't need it, and it just adds latency +
+    // cost per request for no benefit. Leave 'false' for Fase 1-2.
+    'TWO_STAGE_CATEGORIZATION' => false,
 ];
