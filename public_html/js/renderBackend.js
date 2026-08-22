@@ -39,8 +39,12 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { BokehPass } from "three/addons/postprocessing/BokehPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { applyPhotoEnvironment } from "./envLighting.js";
+import { CinematicGradeShader } from "./cinematicGradeShader.js";
 
 /**
  * Probe WebGPU availability without side effects (no renderer created).
@@ -59,7 +63,7 @@ export async function probeWebGPU() {
   }
 }
 
-export function createWebGLPipeline({ canvas, scene, camera }) {
+export async function createWebGLPipeline({ canvas, scene, camera }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -80,20 +84,22 @@ export function createWebGLPipeline({ canvas, scene, camera }) {
   }
 
   renderer.shadowMap.enabled = !lowPowerMode;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap; // thin, soft-edged shadows rather than hard blocky ones
+  renderer.shadowMap.type = THREE.VSMShadowMap; // thin, soft-edged shadows rather than hard blocky ones
 
-  // Image-based lighting — a procedural "room" environment (no external HDR
-  // file needed) gives glass/metal/water materials a believable reflection
-  // instead of flat unlit color.
-  const pmremGenerator = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
-  pmremGenerator.dispose();
+  // Image-based lighting from a real HDR photo (falls back to the old
+  // procedural room internally if the asset fails to load) — see
+  // envLighting.js. Awaited before the first frame so materials never
+  // render a beat with the wrong reflections.
+  await applyPhotoEnvironment(renderer, scene);
 
   // Post-processing pipeline — approximates a few of the visual wins a path
   // tracer gives you "for free" (soft contact shadows, glow around bright/
-  // emissive surfaces) using cheap, real-time screen-space passes instead,
-  // so the viewport stays interactive while orbiting or during edits.
-  //   RenderPass -> SSAOPass (contact shadow) -> UnrealBloomPass (glow) -> OutputPass
+  // emissive surfaces, shallow depth of field) using cheap, real-time
+  // screen-space passes instead, so the viewport stays interactive while
+  // orbiting or during edits.
+  //   RenderPass -> SSAOPass (contact shadow) -> UnrealBloomPass (glow) ->
+  //   BokehPass (depth of field) -> OutputPass -> CinematicGradeShader
+  //   (vignette/grain/split-tone, display-referred so it runs last)
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
 
@@ -109,13 +115,28 @@ export function createWebGLPipeline({ canvas, scene, camera }) {
   bloomPass.enabled = !lowPowerMode;
   composer.addPass(bloomPass);
 
+  // Kept subtle on purpose: this is a scene EDITOR, not a cinematic
+  // still — a strong blur would fight the "see and select your objects"
+  // task. aperture/maxblur are small fractions of the shader's own
+  // defaults (0.025 / 1.0); focus distance is kept in sync with the
+  // orbit target every frame via setFocusDistance() so whatever the user
+  // is actually looking at stays sharp regardless of camera distance.
+  const bokehPass = new BokehPass(scene, camera, { focus: 12, aperture: 0.006, maxblur: 0.008 });
+  bokehPass.enabled = !lowPowerMode;
+  composer.addPass(bokehPass);
+
   composer.addPass(new OutputPass());
+
+  const gradePass = new ShaderPass(CinematicGradeShader);
+  gradePass.enabled = !lowPowerMode; // cheap, but still a full extra pass — skip on a software rasterizer
+  composer.addPass(gradePass);
 
   return {
     kind: "webgl",
     renderer,
     lowPowerMode,
     render() {
+      if (gradePass.enabled) gradePass.uniforms.time.value = performance.now() * 0.001;
       composer.render();
     },
     setSize(w, h) {
@@ -126,9 +147,13 @@ export function createWebGLPipeline({ canvas, scene, camera }) {
       // sharp AO map.
       ssaoPass.setSize(Math.max(1, Math.round(w * 0.5)), Math.max(1, Math.round(h * 0.5)));
     },
+    setFocusDistance(dist) {
+      bokehPass.uniforms.focus.value = dist;
+    },
     setEnhanced(on) {
       ssaoPass.enabled = on;
       bloomPass.enabled = on;
+      bokehPass.enabled = on;
     },
     isEnhanced() {
       return ssaoPass.enabled;
@@ -166,7 +191,7 @@ export async function createWebGPUPipeline({ canvas, scene, camera, isFallbackAd
 
   const lowPowerMode = isFallbackAdapter;
   renderer.shadowMap.enabled = !lowPowerMode;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.VSMShadowMap;
 
   // Sync fromScene() is the current (non-deprecated) API — valid here since
   // renderer.init() has already been awaited above.

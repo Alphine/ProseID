@@ -9,10 +9,12 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { buildCardObject } from "./cardRegistry.js";
 import { SceneState } from "./sceneState.js";
 import { applyPatch } from "./layoutEngine.js";
+import { applyPhotoEnvironment } from "./envLighting.js";
+import { CinematicGradeShader } from "./cinematicGradeShader.js";
 
 const canvas = document.getElementById("heroCanvas");
 if (canvas) {
@@ -35,7 +37,7 @@ if (canvas) {
   } catch (e) { /* ignore — default to full quality */ }
 
   renderer.shadowMap.enabled = !lowPowerMode;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.VSMShadowMap;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0f0c);
@@ -68,11 +70,10 @@ if (canvas) {
   ground.receiveShadow = !lowPowerMode;
   scene.add(ground);
 
-  // Same IBL trick as the composer, so glass/metal materials (the building
-  // card) read correctly in the hero preview too.
-  const pmremGenerator = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
-  pmremGenerator.dispose();
+  // Same real-HDR-photo IBL as the composer (envLighting.js), so glass/metal
+  // materials (the building card) get the same reflections/lighting here as
+  // in the actual app — the hero shouldn't look like a different renderer.
+  await applyPhotoEnvironment(renderer, scene);
 
   // Showcase a mix of nature (tree/flower_bush), architecture (house +
   // building), a small environment patch (terrain), and props — a compact
@@ -99,13 +100,18 @@ if (canvas) {
     scene.add(obj);
   }
 
-  // Bloom only (no SSAO here — this canvas renders continuously in the
-  // background of a marketing page, so we keep its per-frame cost low).
+  // Bloom only (no SSAO/DOF here — this canvas renders continuously in the
+  // background of a marketing page, so per-frame cost is kept low). The
+  // cinematic grade pass is cheap (one extra full-screen shader) and is
+  // what makes this preview match the compose app's look, so it stays.
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
   const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.4, 0.75);
   composer.addPass(bloomPass);
   composer.addPass(new OutputPass());
+  const gradePass = new ShaderPass(CinematicGradeShader);
+  gradePass.enabled = !lowPowerMode;
+  composer.addPass(gradePass);
 
   function resize() {
     const w = wrap.clientWidth, h = wrap.clientHeight;
@@ -142,6 +148,7 @@ if (canvas) {
     const bob = Math.sin(t * 0.6) * 0.3;
     camera.position.set(Math.cos(angle) * 11.5, 6.6 + bob, Math.sin(angle) * 11.5);
     camera.lookAt(0.8, 0.6, 0);
+    if (gradePass.enabled) gradePass.uniforms.time.value = performance.now() * 0.001;
     composer.render();
     if (firstFrame) {
       firstFrame = false;

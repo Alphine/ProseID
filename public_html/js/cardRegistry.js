@@ -6,6 +6,7 @@
  * there is no eval()/new Function() anywhere in this pipeline.
  */
 import * as THREE from "three";
+import { getProceduralTexture } from "./proceduralTextures.js";
 
 const COLOR = {
   green: 0x3a7d44,
@@ -36,6 +37,22 @@ function colorOf(key, fallback = 0x999999) {
   return COLOR[key] ?? fallback;
 }
 
+/**
+ * Attach a procedural color+normal map pair (see proceduralTextures.js) to a
+ * MeshStandardMaterial/MeshPhysicalMaterial options object, in place of a
+ * flat color fill. `colorHex` both tints the generated texture and stays as
+ * `color` on the material itself (multiplied with the map), so the result
+ * still respects the requested hue exactly, just with real surface detail.
+ */
+function withTexture(matOptions, type, colorHex) {
+  const tex = getProceduralTexture(type, colorHex);
+  if (tex) {
+    matOptions.map = tex.map;
+    matOptions.normalMap = tex.normalMap;
+  }
+  return matOptions;
+}
+
 function makeGroup(id, card) {
   const g = new THREE.Group();
   g.name = id;
@@ -49,18 +66,18 @@ const builders = {
     const leafColor = colorOf(params.leaf_color ?? "green");
     const twisted = params.trunk_style === "twisted";
 
-    const trunkGeo = new THREE.CylinderGeometry(0.12 * height / 2, 0.16 * height / 2, height * 0.5, 8);
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c4023, roughness: 0.9 });
+    const trunkGeo = new THREE.CylinderGeometry(0.12 * height / 2, 0.16 * height / 2, height * 0.5, 14);
+    const trunkMat = new THREE.MeshStandardMaterial(withTexture({ color: 0x5c4023, roughness: 0.9 }, "bark", 0x5c4023));
     const trunk = new THREE.Mesh(trunkGeo, trunkMat);
     trunk.position.y = height * 0.25;
     if (twisted) trunk.rotation.y = Math.PI / 6;
     trunk.castShadow = true;
 
-    const foliageMat = new THREE.MeshStandardMaterial({ color: leafColor, roughness: 0.8 });
+    const foliageMat = new THREE.MeshStandardMaterial(withTexture({ color: leafColor, roughness: 0.8 }, "leaf", leafColor));
     const foliage = new THREE.Group();
     for (let i = 0; i < 3; i++) {
       const r = (height * 0.45) * (1 - i * 0.18);
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(r, height * 0.42, 8), foliageMat);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(r, height * 0.42, 16), foliageMat);
       cone.position.y = height * 0.55 + i * height * 0.28;
       cone.castShadow = true;
       foliage.add(cone);
@@ -78,7 +95,7 @@ const builders = {
     if (shape === "angular") geo = new THREE.DodecahedronGeometry(size * 0.6, 0);
     else if (shape === "flat") geo = new THREE.SphereGeometry(size * 0.6, 6, 4);
     else geo = new THREE.IcosahedronGeometry(size * 0.6, 1);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x8b8b86, roughness: 1, flatShading: true });
+    const mat = new THREE.MeshStandardMaterial(withTexture({ color: 0x8b8b86, roughness: 1, flatShading: true }, "stone", 0x8b8b86));
     const mesh = new THREE.Mesh(geo, mat);
     if (shape === "flat") mesh.scale.y = 0.4;
     mesh.position.y = size * 0.3;
@@ -91,8 +108,8 @@ const builders = {
     const size = params.size ?? 0.8;
     const flowerColor = colorOf(params.flower_color ?? "pink");
     const group = new THREE.Group();
-    const bushMat = new THREE.MeshStandardMaterial({ color: 0x3e6b3a, roughness: 0.9 });
-    const bush = new THREE.Mesh(new THREE.SphereGeometry(size * 0.5, 8, 6), bushMat);
+    const bushMat = new THREE.MeshStandardMaterial(withTexture({ color: 0x3e6b3a, roughness: 0.9 }, "leaf", 0x3e6b3a));
+    const bush = new THREE.Mesh(new THREE.SphereGeometry(size * 0.5, 14, 10), bushMat);
     bush.position.y = size * 0.4;
     bush.castShadow = true;
     group.add(bush);
@@ -143,14 +160,18 @@ const builders = {
       thickness: 0.6,
       ior: 1.33,
     });
-    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 0.95, 0.08, 24), mat);
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 0.95, 0.08, 32), mat);
     mesh.position.y = 0.04;
     mesh.receiveShadow = true;
     return mesh;
   },
 
   bench(params) {
-    const mat = new THREE.MeshStandardMaterial({ color: colorOf(params.material ?? "wood"), roughness: 0.8 });
+    const material = params.material ?? "wood";
+    const benchColor = colorOf(material);
+    const mat = new THREE.MeshStandardMaterial(
+      material === "wood" ? withTexture({ color: benchColor, roughness: 0.8 }, "bark", benchColor) : { color: benchColor, roughness: 0.8 }
+    );
     const group = new THREE.Group();
     const seat = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.08, 0.5), mat);
     seat.position.y = 0.45;
@@ -170,26 +191,26 @@ const builders = {
   fountain(params) {
     const size = params.size ?? 1.5;
     const tiers = Math.max(1, Math.min(3, Math.round(params.tiers ?? 2)));
-    const stoneMat = new THREE.MeshStandardMaterial({ color: 0xb7b2a6, roughness: 0.85 });
+    const stoneMat = new THREE.MeshStandardMaterial(withTexture({ color: 0xb7b2a6, roughness: 0.85 }, "stone", 0xb7b2a6));
     const waterMat = new THREE.MeshPhysicalMaterial({
       color: 0x3a8fd1, roughness: 0.2, metalness: 0, transmission: 0.9, thickness: 0.3, ior: 1.33,
     });
     const group = new THREE.Group();
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(size, size * 1.05, 0.25, 20), stoneMat);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(size, size * 1.05, 0.25, 28), stoneMat);
     base.position.y = 0.125;
     group.add(base);
-    const waterBase = new THREE.Mesh(new THREE.CylinderGeometry(size * 0.92, size * 0.92, 0.06, 20), waterMat);
+    const waterBase = new THREE.Mesh(new THREE.CylinderGeometry(size * 0.92, size * 0.92, 0.06, 28), waterMat);
     waterBase.position.y = 0.26;
     group.add(waterBase);
     let y = 0.35;
     for (let i = 0; i < tiers; i++) {
       const r = size * (0.65 - i * 0.2);
-      const tier = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.1, 0.35, 16), stoneMat);
+      const tier = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.1, 0.35, 24), stoneMat);
       tier.position.y = y + 0.175;
       group.add(tier);
       y += 0.4;
     }
-    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, 0.4, 8), stoneMat);
+    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, 0.4, 12), stoneMat);
     spout.position.y = y + 0.2;
     group.add(spout);
     group.traverse((o) => { o.castShadow = true; o.receiveShadow = true; });
@@ -202,12 +223,12 @@ const builders = {
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.6, metalness: 0.5 });
     const group = new THREE.Group();
     const height = style === "lantern" ? 1.6 : 2.6;
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, height, 8), poleMat);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, height, 14), poleMat);
     pole.position.y = height / 2;
     group.add(pole);
     const bulbColor = warm ? 0xffd27a : 0xcfe8ff;
     const bulbMat = new THREE.MeshStandardMaterial({ color: bulbColor, emissive: bulbColor, emissiveIntensity: 1.2 });
-    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 10), bulbMat);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 16), bulbMat);
     bulb.position.y = height + 0.05;
     group.add(bulb);
     const light = new THREE.PointLight(bulbColor, 0.8, 6, 2);
@@ -224,10 +245,10 @@ const builders = {
 
   gazebo(params) {
     const size = params.size ?? 3;
-    const woodMat = new THREE.MeshStandardMaterial({ color: 0x8a5a3b, roughness: 0.85 });
+    const woodMat = new THREE.MeshStandardMaterial(withTexture({ color: 0x8a5a3b, roughness: 0.85 }, "bark", 0x8a5a3b));
     const roofMat = new THREE.MeshStandardMaterial({ color: 0x5c3b26, roughness: 0.8 });
     const group = new THREE.Group();
-    const postGeo = new THREE.CylinderGeometry(size * 0.04, size * 0.04, size * 0.75, 8);
+    const postGeo = new THREE.CylinderGeometry(size * 0.04, size * 0.04, size * 0.75, 14);
     const r = size * 0.45;
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
@@ -252,7 +273,10 @@ const builders = {
     const roofColor = colorOf(params.roof_color ?? "dark_wood");
     const chimney = params.chimney ?? true;
     const group = new THREE.Group();
-    const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.9 });
+    const wallTexType = params.wall_color === "stone" || !params.wall_color ? "stone" : params.wall_color === "wood_brown" ? "bark" : null;
+    const wallMat = new THREE.MeshStandardMaterial(
+      wallTexType ? withTexture({ color: wallColor, roughness: 0.9 }, wallTexType, wallColor) : { color: wallColor, roughness: 0.9 }
+    );
     const wallHeight = width * 0.5;
     const body = new THREE.Mesh(new THREE.BoxGeometry(width, wallHeight, depth), wallMat);
     body.position.y = wallHeight / 2;
@@ -391,7 +415,13 @@ const builders = {
     const radius = params.radius ?? 3;
     const surface = params.surface ?? "grass";
     const colorMap = { grass: 0x3d6b3f, sand: 0xd9c48a, snow: 0xf2f5fa, rocky: 0x7a7772 };
-    const geo = new THREE.CircleGeometry(radius, 24);
+    // CircleGeometry is a fan from the center — one ring of edge vertices
+    // and nothing in between, so a displacement loop over it can only ever
+    // move the rim (coarse, faceted). RingGeometry(0, radius, ...) gives an
+    // actual radial grid (phiSegments rings between center and edge) using
+    // the same x/y-plane, z-up layout, so the hill bump below reads as a
+    // real dome instead of a flat-sided cone.
+    const geo = new THREE.RingGeometry(0, radius, 48, 8);
     // gentle hill bump via vertex displacement — cheap stand-in for a
     // heightmap/noise-based terrain, enough to break up a flat ground plane
     const pos = geo.attributes.position;
@@ -402,7 +432,12 @@ const builders = {
       pos.setZ(i, bump + (Math.random() - 0.5) * 0.03);
     }
     geo.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ color: colorMap[surface] ?? colorMap.grass, roughness: 1, flatShading: surface === "rocky" });
+    const texType = surface === "grass" ? "grass" : surface === "rocky" ? "stone" : null;
+    const baseColor = colorMap[surface] ?? colorMap.grass;
+    const mat = new THREE.MeshStandardMaterial(
+      texType ? withTexture({ color: baseColor, roughness: 1, flatShading: surface === "rocky" }, texType, baseColor)
+        : { color: baseColor, roughness: 1, flatShading: surface === "rocky" }
+    );
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.y = 0.01;
@@ -413,7 +448,11 @@ const builders = {
   wall(params) {
     const length = params.length ?? 4;
     const material = params.material ?? "stone";
-    const mat = new THREE.MeshStandardMaterial({ color: colorOf(material === "wood_fence" ? "wood_fence" : material), roughness: 0.9 });
+    const isStone = material !== "wood_fence";
+    const wallColor = colorOf(material === "wood_fence" ? "wood_fence" : material);
+    const mat = new THREE.MeshStandardMaterial(
+      isStone ? withTexture({ color: wallColor, roughness: 0.9 }, "stone", wallColor) : { color: wallColor, roughness: 0.9 }
+    );
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(length, 0.6, 0.2), mat);
     mesh.position.y = 0.3;
     mesh.castShadow = true;
@@ -451,7 +490,7 @@ const builders = {
       group.add(cabin);
     }
     const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
-    const wheelGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.2, 12);
+    const wheelGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.2, 20);
     [[-0.7, -0.45], [0.7, -0.45], [-0.7, 0.45], [0.7, 0.45]].forEach(([x, z]) => {
       const wheel = new THREE.Mesh(wheelGeo, wheelMat);
       wheel.rotation.z = Math.PI / 2;
@@ -468,7 +507,7 @@ const builders = {
     const group = new THREE.Group();
     for (let i = 0; i < 4; i++) {
       const s = size * (0.3 + Math.random() * 0.25);
-      const puff = new THREE.Mesh(new THREE.SphereGeometry(s, 8, 8), mat);
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(s, 14, 10), mat);
       puff.position.set((i - 1.5) * size * 0.3, Math.random() * size * 0.1, 0);
       group.add(puff);
     }
@@ -480,14 +519,14 @@ const builders = {
     const group = new THREE.Group();
     const logMat = new THREE.MeshStandardMaterial({ color: 0x4a3320, roughness: 0.9 });
     for (let i = 0; i < 4; i++) {
-      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * size, 0.05 * size, 0.6 * size, 6), logMat);
+      const log = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * size, 0.05 * size, 0.6 * size, 10), logMat);
       log.rotation.z = Math.PI / 2;
       log.rotation.y = (i / 4) * Math.PI;
       log.position.y = 0.05 * size;
       group.add(log);
     }
     const flameMat = new THREE.MeshStandardMaterial({ color: 0xff8c2b, emissive: 0xff6a00, emissiveIntensity: 1.5 });
-    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.18 * size, 0.5 * size, 8), flameMat);
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.18 * size, 0.5 * size, 12), flameMat);
     flame.position.y = 0.35 * size;
     group.add(flame);
     const light = new THREE.PointLight(0xff8c2b, 1.2, 5, 2);

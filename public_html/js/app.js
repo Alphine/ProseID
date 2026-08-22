@@ -112,6 +112,10 @@ const AUTO_THROTTLE_STREAK = 4; // ~4 consecutive 500ms windows (~2s sustained)
 function animate(now) {
   requestAnimationFrame(animate);
   controls.update();
+  // Keep the depth-of-field focus distance locked to whatever the user is
+  // actually orbiting around, not a fixed distance — otherwise DOF would
+  // read as "randomly blurry" depending on how far the camera happens to be.
+  pipeline.setFocusDistance?.(camera.position.distanceTo(controls.target));
   pipeline.render();
 
   frames++;
