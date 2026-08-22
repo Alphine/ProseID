@@ -38,8 +38,8 @@ if (canvas) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0d0f16);
-  scene.fog = new THREE.Fog(0x0d0f16, 14, 36);
+  scene.background = new THREE.Color(0x0a0f0c);
+  scene.fog = new THREE.Fog(0x0a0f0c, 14, 36);
 
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
 
@@ -58,11 +58,11 @@ if (canvas) {
     sun.shadow.bias = -0.0015;
   }
   scene.add(sun);
-  const rim = new THREE.DirectionalLight(0x7c5cff, 0.35);
+  const rim = new THREE.DirectionalLight(0x6dffb0, 0.35);
   rim.position.set(-8, 4, -6);
   scene.add(rim);
 
-  const groundMat = new THREE.MeshStandardMaterial({ color: 0x1c2032, roughness: 1 });
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0x122019, roughness: 1 });
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = !lowPowerMode;

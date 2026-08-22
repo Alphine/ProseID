@@ -19,6 +19,9 @@ if (!$user) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Prompt-to-3D · AI Scene Composer</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -26,25 +29,25 @@ if (!$user) {
 
   <header class="topbar">
     <div class="brand">
-      <div class="brand-icon">◆</div>
+      <div class="brand-icon">&gt;</div>
       <div class="brand-text">
-        <div class="brand-name">Prompt-to-3D <span class="badge">BETA</span></div>
+        <div class="brand-name">prompt-to-3d_ <span class="badge">BETA</span></div>
         <div class="brand-sub">AI Scene Composer</div>
       </div>
     </div>
     <div class="topbar-center">
-      <button class="tab active" data-mode="compose">✎ Compose</button>
+      <button class="tab active" data-mode="compose">Compose</button>
       <button class="tab" data-mode="explore" title="Coming soon">Explore</button>
     </div>
     <div class="topbar-right">
-      <button class="btn ghost" id="saveBtn">⬆ Save</button>
-      <button class="btn ghost" id="exportBtn">⬇ Export</button>
+      <button class="btn ghost" id="saveBtn">Save</button>
+      <button class="btn ghost" id="exportBtn">Export</button>
       <button class="btn icon" title="Help" aria-label="Help">?</button>
       <div class="user-chip" title="<?php echo htmlspecialchars($user['email']); ?>">
         <span class="user-avatar"><?php echo htmlspecialchars(mb_strtoupper(mb_substr($user['name'], 0, 1))); ?></span>
         <span class="user-name"><?php echo htmlspecialchars($user['name']); ?></span>
       </div>
-      <button class="btn ghost" id="logoutBtn" title="Log out" aria-label="Log out">⏻</button>
+      <button class="btn ghost" id="logoutBtn" title="Log out" aria-label="Log out">[esc]</button>
     </div>
   </header>
 
@@ -54,7 +57,7 @@ if (!$user) {
     <aside class="panel chat-panel">
       <div class="panel-header">
         <span>CHAT</span>
-        <button class="icon-btn" id="newChatBtn" title="New scene" aria-label="New scene">✦</button>
+        <button class="icon-btn wide" id="newChatBtn" title="New scene" aria-label="New scene">+ new</button>
       </div>
       <div class="chat-log" id="chatLog"></div>
       <div class="try-prompts" id="tryPrompts">
@@ -63,25 +66,25 @@ if (!$user) {
       </div>
       <div class="chat-input-row">
         <input id="promptInput" type="text" placeholder="Describe your scene…" maxlength="<?php echo InputValidator::MAX_PROMPT_LENGTH; ?>" autocomplete="off" />
-        <button id="sendBtn" class="send-btn" title="Send" aria-label="Send">➤</button>
+        <button id="sendBtn" class="send-btn" title="Send" aria-label="Send">&gt;</button>
       </div>
     </aside>
 
     <!-- CENTER: VIEWPORT -->
     <main class="panel viewport-panel">
       <div class="viewport-toolbar">
-        <button class="btn small" id="playBtn">▶ Play</button>
+        <button class="btn small" id="playBtn">Play</button>
         <select id="camSelect" class="select small">
           <option>Free Cam</option>
           <option>Top Cam</option>
           <option>Front Cam</option>
         </select>
         <div class="toolbar-sep"></div>
-        <button class="icon-btn tool" data-tool="move" title="Move" aria-label="Move">✛</button>
-        <button class="icon-btn tool" data-tool="rotate" title="Rotate" aria-label="Rotate">↻</button>
-        <button class="icon-btn tool" data-tool="scale" title="Scale" aria-label="Scale">▦</button>
-        <button class="icon-btn tool" data-tool="grid" title="Toggle grid" aria-label="Toggle grid">▤</button>
-        <button class="icon-btn tool" data-tool="light" title="Lighting" aria-label="Lighting">☀</button>
+        <button class="icon-btn wide tool" data-tool="move" title="Move" aria-label="Move">move</button>
+        <button class="icon-btn wide tool" data-tool="rotate" title="Rotate" aria-label="Rotate">rot</button>
+        <button class="icon-btn wide tool" data-tool="scale" title="Scale" aria-label="Scale">scale</button>
+        <button class="icon-btn wide tool" data-tool="grid" title="Toggle grid" aria-label="Toggle grid">grid</button>
+        <button class="icon-btn wide tool" data-tool="light" title="Lighting" aria-label="Lighting">light</button>
         <div class="toolbar-spacer"></div>
         <div class="perf-badge"><span id="fpsVal">60</span> FPS</div>
       </div>
@@ -92,7 +95,7 @@ if (!$user) {
           <div id="loadingText">Composing scene…</div>
         </div>
         <div id="emptyState" class="empty-state">
-          <div class="empty-icon">◆</div>
+          <div class="empty-icon">&gt;</div>
           <div class="empty-title">Describe it. See it in 3D.</div>
           <div class="empty-sub">Type a prompt on the left, or click one of the example prompts to start.</div>
         </div>

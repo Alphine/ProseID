@@ -35,8 +35,8 @@ const canvas = document.getElementById("scene3d");
 const canvasWrap = document.getElementById("canvasWrap");
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0d0f16);
-scene.fog = new THREE.Fog(0x0d0f16, 25, 70);
+scene.background = new THREE.Color(0x0a0f0c);
+scene.fog = new THREE.Fog(0x0a0f0c, 25, 70);
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
 camera.position.set(9, 7, 9);
@@ -66,10 +66,10 @@ if (!lowPowerMode) {
 }
 scene.add(sun);
 
-let gridHelper = new THREE.GridHelper(40, 40, 0x333850, 0x1c1f2c);
+let gridHelper = new THREE.GridHelper(40, 40, 0x2f5a41, 0x17291f);
 scene.add(gridHelper);
 
-const groundMat = new THREE.MeshStandardMaterial({ color: 0x1c2032, roughness: 1 });
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x122019, roughness: 1 });
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), groundMat);
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = !lowPowerMode;
@@ -245,7 +245,7 @@ function pushMessage(role, text, meta) {
   if (role === "assistant") {
     const av = document.createElement("div");
     av.className = "avatar";
-    av.textContent = "◆";
+    av.textContent = ">";
     row.appendChild(av);
   }
   const bubble = document.createElement("div");
@@ -408,7 +408,7 @@ async function loadDemoPrompts() {
     }
     const surprise = document.createElement("button");
     surprise.className = "chip surprise";
-    surprise.textContent = "✨ Surprise me";
+    surprise.textContent = "surprise me";
     surprise.addEventListener("click", () => {
       const d = demos[Math.floor(Math.random() * demos.length)];
       pushMessage("user", d.prompt);
@@ -512,7 +512,7 @@ function renderOutliner() {
     // if a prompt-injected response ever smuggles markup in an id string.
     const iconSpan = document.createElement("span");
     iconSpan.className = "oi-icon";
-    iconSpan.textContent = def ? def.icon : "◆";
+    iconSpan.textContent = def ? def.icon : ">";
     const nameSpan = document.createElement("span");
     nameSpan.className = "oi-name";
     nameSpan.textContent = id;
@@ -520,7 +520,7 @@ function renderOutliner() {
     removeBtn.className = "oi-remove";
     removeBtn.title = "Remove";
     removeBtn.setAttribute("aria-label", "Remove");
-    removeBtn.textContent = "✕";
+    removeBtn.textContent = "[x]";
     row.append(iconSpan, nameSpan, removeBtn);
     row.addEventListener("click", (e) => {
       if (e.target.closest(".oi-remove")) return;
@@ -558,7 +558,7 @@ function renderProperties() {
 
   const title = document.createElement("div");
   title.className = "prop-group-title";
-  title.textContent = `${def ? def.icon : "◆"} ${selectedId}`;
+  title.textContent = `${def ? def.icon : ">"} ${selectedId}`;
   propertiesBody.appendChild(title);
 
   const transformTitle = document.createElement("div");
@@ -667,7 +667,7 @@ document.getElementById("camSelect").addEventListener("change", (e) => {
 document.getElementById("playBtn").addEventListener("click", () => {
   controls.autoRotate = !controls.autoRotate;
   controls.autoRotateSpeed = 1.2;
-  document.getElementById("playBtn").textContent = controls.autoRotate ? "⏸ Pause" : "▶ Play";
+  document.getElementById("playBtn").textContent = controls.autoRotate ? "Pause" : "Play";
 });
 
 // ---------------------------------------------------------------------------
