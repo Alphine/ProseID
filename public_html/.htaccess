@@ -1,6 +1,24 @@
 # Prompt-to-3D — Apache config for shared hosting (Hostinger)
 DirectoryIndex index.html
 
+# Force revalidation on every load for JS/JSON/CSS/HTML instead of letting
+# browsers apply heuristic caching (no explicit Cache-Control here means a
+# browser is free to cache a static file for hours/days based on its
+# Last-Modified age). That heuristic caching is exactly what caused a real
+# bug: after the vendor/three.js upgrade, some browsers kept serving an
+# old cached SSAOPass.js against the new three.module.js — two files that
+# were updated together but cached independently — producing an import
+# error for a symbol ('LuminanceFormat') the new core no longer exports.
+# `no-cache` still lets the browser reuse a cached copy when the server
+# confirms (via ETag/Last-Modified) nothing changed, so this isn't a
+# performance regression — it just removes the "silently stale for a
+# while" window entirely.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(js|mjs|json|css|html)$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
+</IfModule>
+
 # Don't let anyone list the data/ folder where SQLite dbs live
 <IfModule mod_autoindex.c>
     Options -Indexes
