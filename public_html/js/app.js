@@ -36,7 +36,11 @@ const canvasWrap = document.getElementById("canvasWrap");
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0f0c);
-scene.fog = new THREE.Fog(0x0a0f0c, 25, 70);
+// Warm dusk tone rather than near-black — now that the HDRI sky is the
+// visible background (see envLighting.js's showSky), fog needs to fade
+// distant ground into something closer to the sky's own horizon color, or
+// the ground plane's edge reads as a hard dark ring against a bright sky.
+scene.fog = new THREE.Fog(0x4a3a30, 25, 70);
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
 camera.position.set(9, 7, 9);

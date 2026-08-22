@@ -41,7 +41,9 @@ if (canvas) {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0f0c);
-  scene.fog = new THREE.Fog(0x0a0f0c, 14, 36);
+  // Warm dusk tone (see app.js's matching comment) — blends the ground's
+  // fade-out with the now-visible HDRI sky instead of a hard dark ring.
+  scene.fog = new THREE.Fog(0x4a3a30, 14, 36);
 
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
 
