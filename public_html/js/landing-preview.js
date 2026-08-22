@@ -133,6 +133,7 @@ if (canvas) {
 
   let angle = 0.5;
   let t = 0;
+  let firstFrame = true;
   function animate() {
     requestAnimationFrame(animate);
     if (!visible || document.hidden) return;
@@ -142,6 +143,12 @@ if (canvas) {
     camera.position.set(Math.cos(angle) * 11.5, 6.6 + bob, Math.sin(angle) * 11.5);
     camera.lookAt(0.8, 0.6, 0);
     composer.render();
+    if (firstFrame) {
+      firstFrame = false;
+      // Swap the CSS skeleton shimmer for the real canvas once there's
+      // actually a rendered frame behind it, instead of a blank-then-pop.
+      requestAnimationFrame(() => wrap.classList.add("preview-ready"));
+    }
   }
   animate();
 }

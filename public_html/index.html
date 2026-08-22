@@ -57,7 +57,7 @@
 <section class="section reveal" id="features">
   <div class="section-title">One tool. <span class="accent">Infinite possibilities.</span></div>
   <div class="section-sub">From game prototypes to architectural concepts, bring your imagination to life in 3D without writing a single line of code.</div>
-  <div class="feature-grid">
+  <div class="feature-grid reveal-stagger">
     <div class="feature-card">
       <div class="fc-icon-badge">💬</div>
       <div class="fc-title">Natural Language</div>
@@ -80,7 +80,7 @@
     </div>
   </div>
 
-  <div class="stats-row">
+  <div class="stats-row reveal-stagger">
     <div class="stat-card"><div class="stat-num">15+</div><div class="stat-label">ready-to-use scene objects</div></div>
     <div class="stat-card"><div class="stat-num">50</div><div class="stat-label">objects per scene, tuned for smooth FPS</div></div>
     <div class="stat-card"><div class="stat-num">0</div><div class="stat-label">API key required to try it</div></div>
@@ -91,7 +91,7 @@
 <section class="section reveal" id="usecases">
   <div class="section-title">Built for <span class="accent">creators, developers, educators.</span></div>
   <div class="section-sub">Whatever you're building, Prompt-to-3D turns a description into a scene you can look at and iterate on immediately.</div>
-  <div class="usecase-grid">
+  <div class="usecase-grid reveal-stagger">
     <div class="usecase-card">
       <div class="uc-icon">🎮</div>
       <div class="uc-title">Game Development</div>
@@ -118,7 +118,7 @@
 <section class="section reveal" id="how">
   <div class="section-title">How it <span class="accent">works.</span></div>
   <div class="section-sub">Three steps, no code, no installation.</div>
-  <div class="feature-grid">
+  <div class="feature-grid reveal-stagger">
     <div class="feature-card">
       <div class="fc-icon-badge">1️⃣</div>
       <div class="fc-title">Describe your scene</div>
@@ -152,6 +152,8 @@
 {
   "imports": {
     "three": "./js/vendor/three/build/three.module.js",
+    "three/webgpu": "./js/vendor/three/build/three.webgpu.js",
+    "three/tsl": "./js/vendor/three/build/three.tsl.js",
     "three/addons/": "./js/vendor/three/examples/jsm/"
   }
 }

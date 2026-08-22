@@ -1,47 +1,31 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
-import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
-import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { CARD_CATALOG, getCardDef, RENDER_PERF_CEILING } from "./cardCatalog.js";
 import { buildCardObject } from "./cardRegistry.js";
 import { SceneState } from "./sceneState.js";
 import { applyPatch, resetGrid } from "./layoutEngine.js";
 import { enableTilt } from "./tilt.js";
+import { probeWebGPU, createWebGLPipeline, createWebGPUPipeline } from "./renderBackend.js";
 
 // ---------------------------------------------------------------------------
-// Three.js scene bootstrap
+// Render backend choice — WebGL (default, battle-tested) or WebGPU (opt-in,
+// see the settings/GPU toolbar toggle further down). Decided once here at
+// load time rather than hot-swapped mid-session; see renderBackend.js's
+// top comment for why. "auto" tries WebGPU only when the adapter looks like
+// real hardware (not a software fallback) and falls back to WebGL silently
+// otherwise — same spirit as the existing lowPowerMode software-rasterizer
+// detection, just one layer earlier.
 // ---------------------------------------------------------------------------
+const BACKEND_KEY = "p3d_render_backend"; // 'auto' | 'webgl' | 'webgpu'
+function getBackendPref() {
+  return localStorage.getItem(BACKEND_KEY) || "auto";
+}
+function setBackendPref(v) {
+  localStorage.setItem(BACKEND_KEY, v);
+}
+
 const canvas = document.getElementById("scene3d");
 const canvasWrap = document.getElementById("canvasWrap");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
-
-// Detect a software/CPU rasterizer (SwiftShader, llvmpipe, etc. — common on
-// remote/virtualized machines and some locked-down corporate laptops) up
-// front, before any renderer/shadow config, since shadow mapping is the
-// single most expensive thing we can turn off on a software rasterizer —
-// it renders a full extra depth pass every frame regardless of how many
-// objects opt into castShadow/receiveShadow individually.
-function isSoftwareRenderer() {
-  try {
-    const gl = renderer.getContext();
-    const info = gl.getExtension("WEBGL_debug_renderer_info");
-    const name = info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
-    return /swiftshader|llvmpipe|software|basic render/i.test(String(name));
-  } catch (e) {
-    return false;
-  }
-}
-const lowPowerMode = isSoftwareRenderer();
-
-renderer.shadowMap.enabled = !lowPowerMode;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap; // thin, soft-edged shadows rather than hard blocky ones
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0d0f16);
@@ -49,6 +33,33 @@ scene.fog = new THREE.Fog(0x0d0f16, 25, 70);
 
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
 camera.position.set(9, 7, 9);
+
+async function bootstrapPipeline() {
+  const pref = getBackendPref();
+  let wantWebGPU = false;
+  let gpuProbe = { usable: false, isFallback: false };
+  if (pref === "webgpu" || pref === "auto") {
+    gpuProbe = await probeWebGPU();
+    wantWebGPU = gpuProbe.usable && !gpuProbe.isFallback;
+  }
+
+  if (wantWebGPU) {
+    try {
+      return await createWebGPUPipeline({ canvas, scene, camera, isFallbackAdapter: gpuProbe.isFallback });
+    } catch (e) {
+      console.warn("WebGPU pipeline init failed, falling back to WebGL:", e);
+      if (pref === "webgpu") {
+        // User explicitly asked for WebGPU and it broke — reset the
+        // preference so a reload doesn't loop into the same failure.
+        setBackendPref("auto");
+      }
+    }
+  }
+  return createWebGLPipeline({ canvas, scene, camera });
+}
+const pipeline = await bootstrapPipeline();
+const renderer = pipeline.renderer;
+const lowPowerMode = pipeline.lowPowerMode;
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0.5, 0);
@@ -80,59 +91,16 @@ ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = !lowPowerMode;
 scene.add(ground);
 
-// ---------------------------------------------------------------------------
-// Image-based lighting — a procedural "room" environment (no external HDR
-// file needed) gives glass/metal materials (the building card, car paint,
-// fountain water) a believable reflection instead of flat unlit color.
-// ---------------------------------------------------------------------------
-const pmremGenerator = new THREE.PMREMGenerator(renderer);
-scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
-pmremGenerator.dispose();
-
-// lowPowerMode was already detected above (before shadow-map setup);
-// reused here — screen-space AO is the priciest pass in this pipeline, so on
-// a software renderer we skip it by default and keep only the cheap bloom
-// pass. Users can still flip it back on with the "light" toolbar button.
-
-// ---------------------------------------------------------------------------
-// Post-processing pipeline — approximates a few of the visual wins a path
-// tracer gives you "for free" (soft contact shadows, glow around bright/
-// emissive surfaces) using cheap, real-time screen-space passes instead, so
-// the viewport stays interactive while orbiting or during multi-turn edits.
-//   RenderPass -> SSAOPass (contact shadow in creases/corners) ->
-//   UnrealBloomPass (glow on emissive windows/lamps/campfire) -> OutputPass
-// ---------------------------------------------------------------------------
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
-
-const ssaoPass = new SSAOPass(scene, camera, 1, 1, 14); // 14 samples — cheaper than the 32-sample default
-ssaoPass.kernelRadius = 5;
-ssaoPass.minDistance = 0.001;
-ssaoPass.maxDistance = 0.12;
-ssaoPass.output = SSAOPass.OUTPUT.Default;
-ssaoPass.enabled = !lowPowerMode;
-composer.addPass(ssaoPass);
-
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.4, 0.75);
-// UnrealBloomPass renders a 5-level mip chain of horizontal+vertical blur
-// passes every frame it's enabled — on a software rasterizer that's costly
-// even with SSAO off, so it defaults off alongside SSAO in low-power mode
-// and can be re-enabled with the same "light" toolbar toggle.
-bloomPass.enabled = !lowPowerMode;
-composer.addPass(bloomPass);
-
-composer.addPass(new OutputPass());
+// lowPowerMode was already detected during pipeline bootstrap; reused here
+// — screen-space AO/bloom is the priciest part of either pipeline, so on a
+// software renderer or fallback GPU adapter it defaults off. Users can
+// still flip it back on with the "light" toolbar button.
 
 function resizeRenderer() {
   const w = canvasWrap.clientWidth, h = canvasWrap.clientHeight;
-  renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  composer.setSize(w, h);
-  // SSAO sampled at half resolution then upscaled — much cheaper, and the
-  // softness reads fine since it's meant to be a subtle contact shadow, not
-  // a sharp AO map.
-  ssaoPass.setSize(Math.max(1, Math.round(w * 0.5)), Math.max(1, Math.round(h * 0.5)));
+  pipeline.setSize(w, h);
 }
 // Debounced so a manual window-drag resize doesn't thrash render-target
 // reallocation on every intermediate ResizeObserver callback.
@@ -150,17 +118,23 @@ resizeRenderer();
 // so it would run the full AO+bloom pipeline unthrottled. To catch that
 // tier too, watch the actual measured FPS: if it stays low for a few
 // consecutive samples, drop AO+bloom automatically, same as the manual
-// "light" toolbar toggle would.
+// "light" toolbar toggle would. If it's STILL slow after that (only
+// reachable on WebGPU, since that's the one dimension left to drop), fall
+// back to the WebGL backend entirely and reload — this is the "kalau
+// berat, matikan WebGPU" behavior, automatic rather than requiring the
+// user to notice and flip the settings toggle themselves.
 let lastFrame = performance.now(), frames = 0, fpsAcc = 0;
 let lowFpsStreak = 0;
 let autoThrottled = false;
+let backendDowngradeStreak = 0;
 const AUTO_THROTTLE_FPS = 24;
 const AUTO_THROTTLE_STREAK = 4; // ~4 consecutive 500ms windows (~2s sustained)
+const BACKEND_DOWNGRADE_STREAK = 6; // ~3s more sustained, after AO+bloom already off
 
 function animate(now) {
   requestAnimationFrame(animate);
   controls.update();
-  composer.render();
+  pipeline.render();
 
   frames++;
   fpsAcc += now - lastFrame;
@@ -170,14 +144,21 @@ function animate(now) {
     document.getElementById("fpsVal").textContent = fps;
     frames = 0; fpsAcc = 0;
 
-    if (!lowPowerMode && !autoThrottled && (ssaoPass.enabled || bloomPass.enabled)) {
+    if (!lowPowerMode && !autoThrottled && pipeline.isEnhanced()) {
       lowFpsStreak = fps < AUTO_THROTTLE_FPS ? lowFpsStreak + 1 : 0;
       if (lowFpsStreak >= AUTO_THROTTLE_STREAK) {
         autoThrottled = true;
-        ssaoPass.enabled = false;
-        bloomPass.enabled = false;
+        pipeline.setEnhanced(false);
         lightToolBtn?.classList.remove("active");
         toast("Sustained low FPS — AO + glow turned off automatically. Re-enable anytime from the light icon.");
+      }
+    } else if (!lowPowerMode && autoThrottled && pipeline.kind === "webgpu" && getBackendPref() === "auto") {
+      backendDowngradeStreak = fps < AUTO_THROTTLE_FPS ? backendDowngradeStreak + 1 : 0;
+      if (backendDowngradeStreak >= BACKEND_DOWNGRADE_STREAK) {
+        backendDowngradeStreak = -Infinity; // fire once
+        setBackendPref("webgl");
+        toast("WebGPU is still heavy on this device — switching to WebGL and reloading…");
+        setTimeout(() => location.reload(), 1400);
       }
     }
   }
@@ -684,11 +665,11 @@ document.querySelectorAll(".icon-btn.tool").forEach((btn) => {
       gridHelper.visible = !gridHelper.visible;
       btn.classList.toggle("active", gridHelper.visible);
     } else if (tool === "light") {
-      // Toggle the SSAO + bloom post-processing pair — a quick escape hatch
-      // for lower-end devices, since screen-space AO is the priciest pass.
+      // Toggle the AO/bloom post-processing pair — a quick escape hatch for
+      // lower-end devices, since screen-space effects are the priciest part
+      // of either render pipeline.
       const on = !btn.classList.contains("active");
-      ssaoPass.enabled = on;
-      bloomPass.enabled = on;
+      pipeline.setEnhanced(on);
       btn.classList.toggle("active", on);
       toast(on ? "Enhanced lighting on (AO + glow)" : "Enhanced lighting off");
     } else {
@@ -699,11 +680,40 @@ document.querySelectorAll(".icon-btn.tool").forEach((btn) => {
 });
 document.querySelector('.icon-btn.tool[data-tool="grid"]').classList.add("active");
 const lightToolBtn = document.querySelector('.icon-btn.tool[data-tool="light"]');
-lightToolBtn.classList.toggle("active", ssaoPass.enabled);
+lightToolBtn.classList.toggle("active", pipeline.isEnhanced());
 lightToolBtn.title = "Toggle ambient occlusion + glow";
 if (lowPowerMode) {
-  toast("Software renderer detected — AO + glow start off for smoother FPS");
+  toast(
+    pipeline.kind === "webgpu"
+      ? "Software WebGPU adapter detected — AO + glow start off for smoother FPS"
+      : "Software renderer detected — AO + glow start off for smoother FPS"
+  );
 }
+
+// ---------------------------------------------------------------------------
+// Render backend toggle — cycles Auto -> WebGL -> WebGPU -> Auto. "Auto"
+// picks WebGPU only when the adapter looks like real hardware (see
+// bootstrapPipeline above); the FPS watcher in animate() also silently
+// downgrades WebGPU -> WebGL if it turns out to be heavy on this device
+// while the pref is still "auto". A picked backend can't hot-swap (see
+// renderBackend.js), so changing it here reloads the page.
+// ---------------------------------------------------------------------------
+const gpuBackendBtn = document.getElementById("gpuBackendBtn");
+function renderBackendLabel() {
+  const pref = getBackendPref();
+  const effective = pipeline.kind === "webgpu" ? "WebGPU" : "WebGL";
+  return pref === "auto" ? `GPU · Auto (${effective})` : `GPU · ${effective}`;
+}
+gpuBackendBtn.textContent = renderBackendLabel();
+gpuBackendBtn.title = `Render backend — click to change. Currently: ${renderBackendLabel()}`;
+gpuBackendBtn.classList.toggle("gpu-active", pipeline.kind === "webgpu");
+gpuBackendBtn.addEventListener("click", () => {
+  const order = ["auto", "webgl", "webgpu"];
+  const next = order[(order.indexOf(getBackendPref()) + 1) % order.length];
+  setBackendPref(next);
+  toast(`Switching render backend to ${next === "auto" ? "Auto" : next.toUpperCase()}…`);
+  setTimeout(() => location.reload(), 500);
+});
 
 document.getElementById("camSelect").addEventListener("change", (e) => {
   const val = e.target.value;

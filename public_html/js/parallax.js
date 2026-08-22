@@ -12,6 +12,15 @@ document.querySelectorAll(".feature-card, .usecase-card, .stat-card").forEach((e
 const heroVisual = document.querySelector(".hero-visual");
 if (heroVisual) enableTilt(heroVisual, 4);
 
+// Nav elevation on scroll — cheap, always on regardless of reduced-motion
+// (it's a state toggle, not a continuous animation).
+const nav = document.querySelector(".landing-nav");
+if (nav) {
+  const onNavScroll = () => nav.classList.toggle("scrolled", window.scrollY > 20);
+  window.addEventListener("scroll", onNavScroll, { passive: true });
+  onNavScroll();
+}
+
 if (!reduceMotion) {
   // Scroll parallax — hero visual drifts slower than scroll, chips drift a
   // touch more than the visual for a layered depth cue.

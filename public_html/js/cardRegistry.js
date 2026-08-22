@@ -127,7 +127,17 @@ const builders = {
   pond(params) {
     const radius = params.radius ?? 2;
     const water = colorOf(params.water_color ?? "blue");
-    const mat = new THREE.MeshStandardMaterial({ color: water, roughness: 0.15, metalness: 0.3, transparent: true, opacity: 0.85 });
+    // Real refraction (not a flat alpha-blend) via transmission + water's
+    // actual index of refraction — needs scene.environment (already set via
+    // the PMREM room environment in app.js) to have something to refract.
+    const mat = new THREE.MeshPhysicalMaterial({
+      color: water,
+      roughness: 0.04,
+      metalness: 0,
+      transmission: 1,
+      thickness: 0.6,
+      ior: 1.33,
+    });
     const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 0.95, 0.08, 24), mat);
     mesh.position.y = 0.04;
     mesh.receiveShadow = true;
@@ -156,7 +166,9 @@ const builders = {
     const size = params.size ?? 1.5;
     const tiers = Math.max(1, Math.min(3, Math.round(params.tiers ?? 2)));
     const stoneMat = new THREE.MeshStandardMaterial({ color: 0xb7b2a6, roughness: 0.85 });
-    const waterMat = new THREE.MeshStandardMaterial({ color: 0x3a8fd1, roughness: 0.2, metalness: 0.3 });
+    const waterMat = new THREE.MeshPhysicalMaterial({
+      color: 0x3a8fd1, roughness: 0.1, metalness: 0, transmission: 1, thickness: 0.3, ior: 1.33,
+    });
     const group = new THREE.Group();
     const base = new THREE.Mesh(new THREE.CylinderGeometry(size, size * 1.05, 0.25, 20), stoneMat);
     base.position.y = 0.125;
@@ -418,7 +430,12 @@ const builders = {
     const bodyColor = colorOf(params.color ?? "red");
     const style = params.style ?? "sedan";
     const group = new THREE.Group();
-    const bodyMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.4, metalness: 0.5 });
+    // Clearcoat layer over the base paint is what actually reads as "car
+    // paint" rather than plain painted metal — a thin, near-mirror lacquer
+    // coat on top of a duller base color.
+    const bodyMat = new THREE.MeshPhysicalMaterial({
+      color: bodyColor, roughness: 0.4, metalness: 0.5, clearcoat: 1, clearcoatRoughness: 0.1,
+    });
     const h = style === "truck" ? 0.55 : 0.4;
     const body = new THREE.Mesh(new THREE.BoxGeometry(2, h, 0.95), bodyMat);
     body.position.y = 0.35 + h / 2;

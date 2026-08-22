@@ -4,7 +4,7 @@
  * + slide it in. No dependency, ~15 lines.
  */
 (function () {
-  const els = document.querySelectorAll(".reveal");
+  const els = document.querySelectorAll(".reveal, .reveal-stagger");
   if (!els.length || !("IntersectionObserver" in window)) {
     els.forEach((el) => el.classList.add("in-view"));
     return;

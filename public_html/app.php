@@ -82,6 +82,8 @@ if (!$user) {
         <button class="icon-btn tool" data-tool="scale" title="Scale" aria-label="Scale">▦</button>
         <button class="icon-btn tool" data-tool="grid" title="Toggle grid" aria-label="Toggle grid">▤</button>
         <button class="icon-btn tool" data-tool="light" title="Lighting" aria-label="Lighting">☀</button>
+        <div class="toolbar-sep"></div>
+        <button class="icon-btn wide" id="gpuBackendBtn" title="Render backend: Auto" aria-label="Render backend">GPU · Auto</button>
         <div class="toolbar-spacer"></div>
         <div class="perf-badge"><span id="fpsVal">60</span> FPS</div>
       </div>
@@ -143,6 +145,8 @@ if (!$user) {
 {
   "imports": {
     "three": "./js/vendor/three/build/three.module.js",
+    "three/webgpu": "./js/vendor/three/build/three.webgpu.js",
+    "three/tsl": "./js/vendor/three/build/three.tsl.js",
     "three/addons/": "./js/vendor/three/examples/jsm/"
   }
 }
