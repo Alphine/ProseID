@@ -1,0 +1,21 @@
+# Prompt-to-3D — Apache config for shared hosting (Hostinger)
+DirectoryIndex index.html
+
+# Don't let anyone list the data/ folder where SQLite dbs live
+<IfModule mod_autoindex.c>
+    Options -Indexes
+</IfModule>
+
+# Block direct access to SQLite db files if ever placed under webroot
+# (dual syntax: Apache <2.4 uses Order/Deny, >=2.4 uses Require — without
+# both, one or the other silently no-ops depending on the host's Apache
+# version/modules, which would leave these files unprotected)
+<FilesMatch "\.(db|sqlite|sqlite3)$">
+    <IfModule !mod_authz_core.c>
+        Order Allow,Deny
+        Deny from all
+    </IfModule>
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+</FilesMatch>

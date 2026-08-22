@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sign in · Prompt-to-3D</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="css/style.css" />
+<link rel="stylesheet" href="css/landing.css" />
+<style>body.auth-body { opacity: 0; transition: opacity .2s ease; } body.auth-body.ready { opacity: 1; }</style>
+</head>
+<body class="auth-body">
+
+<a class="auth-brand" href="index.html">
+  <div class="brand-icon">◆</div>
+  <div class="brand-text">
+    <div class="brand-name">Prompt-to-3D</div>
+    <div class="brand-sub">AI Scene Composer</div>
+  </div>
+</a>
+
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-tab="login">Log in</button>
+      <button class="auth-tab" data-tab="signup">Sign up</button>
+    </div>
+
+    <form id="loginForm" class="auth-form">
+      <div class="field">
+        <label for="loginEmail">Email</label>
+        <input id="loginEmail" type="email" required autocomplete="email" placeholder="you@example.com" />
+      </div>
+      <div class="field">
+        <label for="loginPassword">Password</label>
+        <input id="loginPassword" type="password" required autocomplete="current-password" placeholder="••••••••" />
+      </div>
+      <div class="auth-error" id="loginError"></div>
+      <button type="submit" class="btn primary auth-submit">Log in</button>
+      <div class="auth-hint">New here? <a href="#" data-switch="signup">Create an account</a></div>
+    </form>
+
+    <form id="signupForm" class="auth-form hidden">
+      <div class="field">
+        <label for="signupName">Name</label>
+        <input id="signupName" type="text" required autocomplete="name" placeholder="Your name" />
+      </div>
+      <div class="field">
+        <label for="signupEmail">Email</label>
+        <input id="signupEmail" type="email" required autocomplete="email" placeholder="you@example.com" />
+      </div>
+      <div class="field">
+        <label for="signupPassword">Password</label>
+        <input id="signupPassword" type="password" required autocomplete="new-password" placeholder="Min. 6 characters" minlength="6" />
+      </div>
+      <div class="auth-error" id="signupError"></div>
+      <button type="submit" class="btn primary auth-submit">Create account</button>
+      <div class="auth-hint">Already have an account? <a href="#" data-switch="login">Log in</a></div>
+    </form>
+  </div>
+  <div class="auth-note">Demo mode works with no API key — sign up to try the composer.</div>
+</div>
+
+<script>
+async function postJSON(url, body) {
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || 'Terjadi kesalahan.');
+  return data;
+}
+
+// If already logged in, skip straight to the app; otherwise reveal the form
+// (avoids a flash of the login form before the redirect kicks in).
+fetch('api/auth/me.php').then(r => r.json()).then(d => {
+  if (d.user) { window.location.href = 'app.php'; return; }
+  document.body.classList.add('ready');
+}).catch(() => document.body.classList.add('ready'));
+
+const tabs = document.querySelectorAll('.auth-tab');
+const forms = { login: document.getElementById('loginForm'), signup: document.getElementById('signupForm') };
+function showTab(name) {
+  tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  Object.entries(forms).forEach(([k, f]) => f.classList.toggle('hidden', k !== name));
+}
+tabs.forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
+document.querySelectorAll('[data-switch]').forEach(a => {
+  a.addEventListener('click', (e) => { e.preventDefault(); showTab(a.dataset.switch); });
+});
+
+async function handleSubmit(form, url, errEl, buildBody) {
+  const btn = form.querySelector('button[type=submit]');
+  const originalLabel = btn.textContent;
+  errEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    await postJSON(url, buildBody());
+    btn.textContent = '✓ ' + originalLabel;
+    window.location.href = 'app.php';
+  } catch (err) {
+    errEl.textContent = err.message;
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+document.getElementById('loginForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  handleSubmit(e.target, 'api/auth/login.php', document.getElementById('loginError'), () => ({
+    email: document.getElementById('loginEmail').value,
+    password: document.getElementById('loginPassword').value,
+  }));
+});
+
+document.getElementById('signupForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  handleSubmit(e.target, 'api/auth/register.php', document.getElementById('signupError'), () => ({
+    name: document.getElementById('signupName').value,
+    email: document.getElementById('signupEmail').value,
+    password: document.getElementById('signupPassword').value,
+  }));
+});
+</script>
+</body>
+</html>

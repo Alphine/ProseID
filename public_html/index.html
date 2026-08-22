@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Prompt-to-3D · Describe it. See it in 3D.</title>
+<meta name="description" content="Turn plain-language prompts into interactive 3D scenes, right in your browser. No installation, no code." />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="css/style.css" />
+<link rel="stylesheet" href="css/landing.css" />
+</head>
+<body class="landing-body">
+
+<nav class="landing-nav">
+  <div class="brand">
+    <div class="brand-icon">◆</div>
+    <div class="brand-text">
+      <div class="brand-name">Prompt-to-3D <span class="badge">BETA</span></div>
+      <div class="brand-sub">AI Scene Composer</div>
+    </div>
+  </div>
+  <div class="landing-nav-links">
+    <a href="#features">Features</a>
+    <a href="#usecases">Gallery</a>
+    <a href="#how">How It Works</a>
+  </div>
+  <div class="landing-nav-right">
+    <a href="login.html" class="btn ghost">Log in</a>
+    <a href="login.html" class="btn primary">Try Composer</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-copy">
+    <div class="eyebrow"><span class="live-dot"></span> AI POWERED · BROWSER BASED · NO CODE</div>
+    <h1>Describe it.<br /><span class="accent">See it in 3D.</span></h1>
+    <p class="lead">Turn any idea into an interactive 3D scene with the power of AI. Compose objects, environments, and logic using plain language — right in your browser.</p>
+    <div class="hero-ctas">
+      <a href="login.html" class="btn primary large">✨ Try Prompt-to-3D Now</a>
+      <a href="#how" class="btn ghost large">▶ How It Works</a>
+    </div>
+    <div class="hero-mini-features">
+      <span class="mini-feature"><span class="dot"></span>No installation, runs in your browser</span>
+      <span class="mini-feature"><span class="dot"></span>AI planning via Claude / OpenAI</span>
+      <span class="mini-feature"><span class="dot"></span>Real-time 3D powered by Three.js</span>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <canvas id="heroCanvas"></canvas>
+    <div class="hero-chip c1"><span class="hero-chip-inner"><span class="spark">✨</span> "Cozy park at sunset"</span></div>
+    <div class="hero-chip c2"><span class="hero-chip-inner"><span class="spark">✨</span> Add a glass office building</span></div>
+    <div class="hero-chip c3"><span class="hero-chip-inner"><span class="spark">✨</span> House, terrain &amp; more</span></div>
+    <div class="hero-live-badge"><span class="live-dot"></span> Live preview — actual renderer</div>
+  </div>
+</section>
+
+<section class="section reveal" id="features">
+  <div class="section-title">One tool. <span class="accent">Infinite possibilities.</span></div>
+  <div class="section-sub">From game prototypes to architectural concepts, bring your imagination to life in 3D without writing a single line of code.</div>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="fc-icon-badge">💬</div>
+      <div class="fc-title">Natural Language</div>
+      <div class="fc-sub">Describe anything — the AI picks the right objects and layout for you.</div>
+    </div>
+    <div class="feature-card">
+      <div class="fc-icon-badge">⚡</div>
+      <div class="fc-title">Instant Composition</div>
+      <div class="fc-sub">AI plans the scene, you see it rendered instantly in Three.js.</div>
+    </div>
+    <div class="feature-card">
+      <div class="fc-icon-badge">🧩</div>
+      <div class="fc-title">Multi-turn Editing</div>
+      <div class="fc-sub">Keep refining — add, modify, or remove objects turn by turn.</div>
+    </div>
+    <div class="feature-card">
+      <div class="fc-icon-badge">📤</div>
+      <div class="fc-title">Export &amp; Save</div>
+      <div class="fc-sub">Save your scene as JSON or export a snapshot in one click.</div>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-num">15+</div><div class="stat-label">ready-to-use scene objects</div></div>
+    <div class="stat-card"><div class="stat-num">50</div><div class="stat-label">objects per scene, tuned for smooth FPS</div></div>
+    <div class="stat-card"><div class="stat-num">0</div><div class="stat-label">API key required to try it</div></div>
+    <div class="stat-card"><div class="stat-num">6</div><div class="stat-label">curated demo scenes, always work</div></div>
+  </div>
+</section>
+
+<section class="section reveal" id="usecases">
+  <div class="section-title">Built for <span class="accent">creators, developers, educators.</span></div>
+  <div class="section-sub">Whatever you're building, Prompt-to-3D turns a description into a scene you can look at and iterate on immediately.</div>
+  <div class="usecase-grid">
+    <div class="usecase-card">
+      <div class="uc-icon">🎮</div>
+      <div class="uc-title">Game Development</div>
+      <div class="uc-sub">Prototype levels and worlds fast.</div>
+    </div>
+    <div class="usecase-card">
+      <div class="uc-icon">🏛️</div>
+      <div class="uc-title">Architecture</div>
+      <div class="uc-sub">Houses, office buildings, and terrain in seconds.</div>
+    </div>
+    <div class="usecase-card">
+      <div class="uc-icon">🚗</div>
+      <div class="uc-title">Product Design</div>
+      <div class="uc-sub">Present concepts beautifully.</div>
+    </div>
+    <div class="usecase-card">
+      <div class="uc-icon">🎓</div>
+      <div class="uc-title">Education</div>
+      <div class="uc-sub">Make lessons come alive.</div>
+    </div>
+  </div>
+</section>
+
+<section class="section reveal" id="how">
+  <div class="section-title">How it <span class="accent">works.</span></div>
+  <div class="section-sub">Three steps, no code, no installation.</div>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="fc-icon-badge">1️⃣</div>
+      <div class="fc-title">Describe your scene</div>
+      <div class="fc-sub">Type a prompt like "cozy park at sunset with a fountain and trees."</div>
+    </div>
+    <div class="feature-card">
+      <div class="fc-icon-badge">2️⃣</div>
+      <div class="fc-title">AI composes it</div>
+      <div class="fc-sub">The AI picks objects from a curated catalog and places them for you.</div>
+    </div>
+    <div class="feature-card">
+      <div class="fc-icon-badge">3️⃣</div>
+      <div class="fc-title">Refine &amp; export</div>
+      <div class="fc-sub">Keep chatting to adjust the scene, then save or export it.</div>
+    </div>
+  </div>
+</section>
+
+<div class="cta-band reveal">
+  <h2>Ready to see your idea in 3D?</h2>
+  <p>Sign up in seconds — the composer works instantly, no API key required to try it.</p>
+  <a href="login.html" class="btn primary large">✨ Try Prompt-to-3D Now</a>
+</div>
+
+<footer class="landing-footer">
+  <span>© 2026 Prompt-to-3D — Built for AI Builder Hackathon 2026, powered by Victoria VR</span>
+  <span>three.js · Claude · OpenAI</span>
+</footer>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./js/vendor/three/build/three.module.js",
+    "three/addons/": "./js/vendor/three/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="js/landing-preview.js"></script>
+<script type="module" src="js/parallax.js"></script>
+<script src="js/reveal.js"></script>
+</body>
+</html>

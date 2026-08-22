@@ -1,0 +1,14 @@
+# Secrets — never commit real API keys. secrets.php ships with empty
+# placeholder values (see public_html/api/config/secrets.php); once a real
+# key is pasted in locally/on the host, it must stay out of git.
+public_html/api/config/secrets.php
+
+# Runtime SQLite databases (users, rate-limit, cache) — generated at
+# runtime under api/data/, contain user password hashes.
+public_html/api/data/*.db
+public_html/api/data/*.sqlite
+public_html/api/data/*.sqlite3
+
+# OS/editor cruft
+.DS_Store
+Thumbs.db
