@@ -4,6 +4,15 @@
  * without the rest of the app (animate loop, resize, the "enhanced
  * lighting" toggle) needing to know which one is active.
  *
+ * createWebGPUPipeline/probeWebGPU are currently UNUSED — app.js only
+ * calls createWebGLPipeline. Real-hardware testing produced a hard GPU
+ * driver crash (Windows DXGI_ERROR_DEVICE_HUNG / "WebGPU Device Lost") on
+ * a real user's machine when the (now-removed) WebGPU toggle was clicked,
+ * so app.js hardcodes WebGL only rather than exposing any path to it.
+ * This code is left in place rather than deleted in case WebGPU is worth
+ * revisiting later, but treat it as unvetted/untrusted until someone
+ * deliberately re-wires and re-tests it.
+ *
  * Both pipelines expose the same shape:
  *   { kind, renderer, lowPowerMode, render(), setSize(w,h),
  *     setEnhanced(bool), isEnhanced(), dispose() }
@@ -17,13 +26,13 @@
  * shared/hoisted out to caller-agnostic code the way scene/camera/lights
  * (plain data, not renderer-bound) can.
  *
- * Design note: the backend choice is made ONCE at page load (see
- * BACKEND_KEY in app.js), not hot-swapped mid-session. app.js's render
+ * Design note (for if WebGPU comes back): the backend choice should be
+ * made ONCE at page load, not hot-swapped mid-session. app.js's render
  * bootstrap has many closures over the renderer/composer (resize handler,
  * the "light" toolbar toggle, the FPS auto-throttle) — an in-place swap
  * would mean rebuilding all of those live, for a rarely-used capability.
- * A settings change instead flips the stored preference and reloads,
- * which is simpler and has far less surface for subtle bugs.
+ * A settings change instead flipping a stored preference and reloading is
+ * simpler and has far less surface for subtle bugs.
  */
 import * as THREE from "three";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
