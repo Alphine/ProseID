@@ -49,6 +49,7 @@ function withTexture(matOptions, type, colorHex) {
   if (tex) {
     matOptions.map = tex.map;
     matOptions.normalMap = tex.normalMap;
+    matOptions.roughnessMap = tex.roughnessMap;
   }
   return matOptions;
 }

@@ -16,6 +16,9 @@
  * Both pipelines expose the same shape:
  *   { kind, renderer, lowPowerMode, render(), setSize(w,h),
  *     setEnhanced(bool), isEnhanced(), dispose() }
+ * The WebGL pipeline additionally exposes setFocusDistance(dist) and
+ * setBokehEnabled(bool)/isBokehEnabled() (depth-of-field controls — the
+ * WebGPU pipeline has no Bokeh pass at all, see its own comment below).
  * The WebGPU pipeline additionally exposes onDeviceLost(callback) — a real
  * failure mode (GPU driver crash / OS-level device reset) that the WebGL
  * pipeline has no equivalent of; callers should check for it before use.
@@ -41,6 +44,7 @@ import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { BokehPass } from "three/addons/postprocessing/BokehPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { applyPhotoEnvironment } from "./envLighting.js";
@@ -98,8 +102,16 @@ export async function createWebGLPipeline({ canvas, scene, camera }) {
   // screen-space passes instead, so the viewport stays interactive while
   // orbiting or during edits.
   //   RenderPass -> SSAOPass (contact shadow) -> UnrealBloomPass (glow) ->
-  //   BokehPass (depth of field) -> OutputPass -> CinematicGradeShader
-  //   (vignette/grain/split-tone, display-referred so it runs last)
+  //   BokehPass (depth of field) -> OutputPass -> SMAAPass (edge AA) ->
+  //   CinematicGradeShader (vignette/grain/split-tone, runs last since
+  //   grain is meant to look like film grain, not something SMAA should
+  //   try to smooth away as a false edge)
+  //
+  // Note on antialias: the `antialias: true` renderer option above does
+  // NOT do anything once EffectComposer is in the picture — RenderPass
+  // draws into the composer's own non-multisampled render target, so the
+  // renderer's own MSAA never applies. SMAAPass is what actually
+  // antialiases this pipeline's output.
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
 
@@ -121,11 +133,19 @@ export async function createWebGLPipeline({ canvas, scene, camera }) {
   // defaults (0.025 / 1.0); focus distance is kept in sync with the
   // orbit target every frame via setFocusDistance() so whatever the user
   // is actually looking at stays sharp regardless of camera distance.
+  // Has its own on/off toggle (setBokehEnabled), separate from the
+  // AO+bloom "enhanced" group — DOF is a much more polarizing effect
+  // than AO/bloom (some people just don't want blur while editing), so
+  // it doesn't get to hide behind one combined switch.
   const bokehPass = new BokehPass(scene, camera, { focus: 12, aperture: 0.006, maxblur: 0.008 });
   bokehPass.enabled = !lowPowerMode;
   composer.addPass(bokehPass);
 
   composer.addPass(new OutputPass());
+
+  const smaaPass = new SMAAPass();
+  smaaPass.enabled = !lowPowerMode;
+  composer.addPass(smaaPass);
 
   const gradePass = new ShaderPass(CinematicGradeShader);
   gradePass.enabled = !lowPowerMode; // cheap, but still a full extra pass — skip on a software rasterizer
@@ -153,10 +173,15 @@ export async function createWebGLPipeline({ canvas, scene, camera }) {
     setEnhanced(on) {
       ssaoPass.enabled = on;
       bloomPass.enabled = on;
-      bokehPass.enabled = on;
     },
     isEnhanced() {
       return ssaoPass.enabled;
+    },
+    setBokehEnabled(on) {
+      bokehPass.enabled = on;
+    },
+    isBokehEnabled() {
+      return bokehPass.enabled;
     },
     dispose() {
       composer.dispose();

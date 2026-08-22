@@ -1,13 +1,14 @@
 /**
- * Procedural color + normal map textures, generated on an offscreen canvas
- * at runtime — no external texture files to fetch/host. Trades flat-color
- * materials for surfaces with actual micro-detail (bark grooves, leaf
- * mottling, stone speckle, grass blades), which reads as far more "real"
- * under directional light than a uniform color ever can, independent of
- * how good the lighting/renderer is.
+ * Procedural color + normal + roughness map textures, generated on an
+ * offscreen canvas at runtime — no external texture files to fetch/host.
+ * Trades flat-color materials for surfaces with actual micro-detail (bark
+ * grooves, leaf mottling, stone speckle, grass blades) and surface variation
+ * (worn/smooth patches vs. rough ones), which reads as far more "real"
+ * under directional light than a uniform color+roughness ever can,
+ * independent of how good the lighting/renderer is.
  *
  * Generated once per (type, base color) combination and cached — many
- * trees of the same leaf_color share one texture pair instead of each
+ * trees of the same leaf_color share one texture triple instead of each
  * paying generation + GPU-upload cost individually.
  */
 import * as THREE from "three";
@@ -40,6 +41,34 @@ function heightToNormalCanvas(height, size, strength) {
       img.data[idx + 2] = ((dz / len) * 0.5 + 0.5) * 255;
       img.data[idx + 3] = 255;
     }
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
+}
+
+/**
+ * height field -> grayscale roughness map. Reuses the same height field
+ * already computed for the normal map (crevices tend to be both visually
+ * darker AND physically rougher, so deriving both from one noise field is
+ * not just cheaper than a second noise pass, it's the more coherent choice)
+ * roughnessMap's sampled value MULTIPLIES material.roughness in three.js,
+ * so this stays centered near 1.0 with modest variance — it's meant to add
+ * micro-variation on top of the material's own roughness, not override it.
+ * `invert`: true means high ground (ridges/raised bits) reads SMOOTHER
+ * (e.g. bark ridges worn shiny) rather than rougher.
+ */
+function heightToRoughnessCanvas(height, size, variance, invert = false) {
+  const canvas = makeCanvas(size);
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(size, size);
+  for (let i = 0; i < size * size; i++) {
+    const h = invert ? -height[i] : height[i];
+    const v = Math.max(0, Math.min(255, Math.round((1 - variance * 0.5 + h * variance) * 255)));
+    const idx = i * 4;
+    img.data[idx] = v;
+    img.data[idx + 1] = v;
+    img.data[idx + 2] = v;
+    img.data[idx + 3] = 255;
   }
   ctx.putImageData(img, 0, 0);
   return canvas;
@@ -87,6 +116,8 @@ function generateBark(colorHex, size = 128) {
   return {
     map: toTexture(canvas, 2, 4),
     normalMap: toTexture(heightToNormalCanvas(height, size, 1.8), 2, 4),
+    // Ridges read as worn-smoother, grooves as rougher/duller — invert:true.
+    roughnessMap: toTexture(heightToRoughnessCanvas(height, size, 0.35, true), 2, 4),
   };
 }
 
@@ -110,6 +141,7 @@ function generateLeaf(colorHex, size = 128) {
   return {
     map: toTexture(canvas, 3, 3),
     normalMap: toTexture(heightToNormalCanvas(height, size, 1.2), 3, 3),
+    roughnessMap: toTexture(heightToRoughnessCanvas(height, size, 0.25), 3, 3),
   };
 }
 
@@ -133,6 +165,9 @@ function generateStone(colorHex, size = 128) {
   return {
     map: toTexture(canvas, 3, 3),
     normalMap: toTexture(heightToNormalCanvas(height, size, 2.2), 3, 3),
+    // Widest variance of the four — stone plausibly ranges from weathered-
+    // smooth to gritty-rough within one surface.
+    roughnessMap: toTexture(heightToRoughnessCanvas(height, size, 0.4), 3, 3),
   };
 }
 
@@ -156,6 +191,7 @@ function generateGrass(colorHex, size = 128) {
   return {
     map: toTexture(canvas, 6, 6),
     normalMap: toTexture(heightToNormalCanvas(height, size, 1.4), 6, 6),
+    roughnessMap: toTexture(heightToRoughnessCanvas(height, size, 0.2), 6, 6),
   };
 }
 
@@ -164,7 +200,7 @@ const GENERATORS = { bark: generateBark, leaf: generateLeaf, stone: generateSton
 /**
  * @param {"bark"|"leaf"|"stone"|"grass"} type
  * @param {number} colorHex
- * @returns {{map: THREE.CanvasTexture, normalMap: THREE.CanvasTexture}}
+ * @returns {{map: THREE.CanvasTexture, normalMap: THREE.CanvasTexture, roughnessMap: THREE.CanvasTexture}}
  */
 export function getProceduralTexture(type, colorHex) {
   const key = `${type}:${colorHex}`;

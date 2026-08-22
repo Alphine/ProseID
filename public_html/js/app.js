@@ -664,6 +664,26 @@ if (lowPowerMode) {
   toast("Software renderer detected — AO + glow start off for smoother FPS");
 }
 
+// Depth of field gets its own toggle, separate from "light" (AO+bloom) —
+// some people just don't want the background blurred while composing a
+// scene, independent of whether they want the AO/glow look.
+const bokehBtn = document.getElementById("bokehBtn");
+if (typeof pipeline.isBokehEnabled === "function") {
+  bokehBtn.classList.toggle("active", pipeline.isBokehEnabled());
+  bokehBtn.addEventListener("click", () => {
+    const on = !bokehBtn.classList.contains("active");
+    pipeline.setBokehEnabled(on);
+    bokehBtn.classList.toggle("active", on);
+    toast(on ? "Depth of field on" : "Depth of field off");
+  });
+} else {
+  // Backend has no Bokeh pass at all (not reachable today — WebGPU is
+  // disabled — but this keeps the button from doing nothing silently if
+  // that ever changes).
+  bokehBtn.disabled = true;
+  bokehBtn.title = "Depth of field not available on this render backend";
+}
+
 document.getElementById("camSelect").addEventListener("change", (e) => {
   const val = e.target.value;
   if (val === "Top Cam") camera.position.set(0.01, 20, 0.01);

@@ -9,6 +9,7 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { buildCardObject } from "./cardRegistry.js";
 import { SceneState } from "./sceneState.js";
@@ -111,6 +112,9 @@ if (canvas) {
   const bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.4, 0.75);
   composer.addPass(bloomPass);
   composer.addPass(new OutputPass());
+  const smaaPass = new SMAAPass();
+  smaaPass.enabled = !lowPowerMode;
+  composer.addPass(smaaPass);
   const gradePass = new ShaderPass(CinematicGradeShader);
   gradePass.enabled = !lowPowerMode;
   composer.addPass(gradePass);

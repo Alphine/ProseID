@@ -85,6 +85,7 @@ if (!$user) {
         <button class="icon-btn wide tool" data-tool="scale" title="Scale" aria-label="Scale">scale</button>
         <button class="icon-btn wide tool" data-tool="grid" title="Toggle grid" aria-label="Toggle grid">grid</button>
         <button class="icon-btn wide tool" data-tool="light" title="Lighting" aria-label="Lighting">light</button>
+        <button class="icon-btn wide" id="bokehBtn" title="Toggle depth of field" aria-label="Toggle depth of field">bokeh</button>
         <div class="toolbar-spacer"></div>
         <div class="perf-badge"><span id="fpsVal">60</span> FPS</div>
       </div>
