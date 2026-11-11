@@ -7,10 +7,12 @@ framework, no build step.
 
 ## What's implemented (mapped to the SDD)
 
-- **Card Catalog** (`js/cardCatalog.js`, mirrored server-side in
-  `api/lib/CardCatalog.php`) — 17 cards (tree, rock, flower_bush, mountain,
-  pond, terrain, bench, fountain, lamp, gazebo, house, building, wall, path,
-  car, cloud, campfire), each a whitelisted tool/function schema. §3.1
+- **Card Catalog** (`data/card_catalog.json`, loaded client-side by
+  `js/cardCatalog.js` and server-side by `api/lib/CardCatalog.php` from the
+  same file — single source of truth) — 17 cards (tree, rock, flower_bush,
+  mountain, pond, terrain, bench, fountain, lamp, gazebo, house, building,
+  wall, path, car, cloud, campfire), each a whitelisted tool/function
+  schema. §3.1
   - `house` — cottage with a window grid, roof overhang trim, and a small
     emissive porch light.
   - `building` — parametric high-rise (glass/concrete/brick styles) with an
@@ -30,10 +32,13 @@ framework, no build step.
   Three.js rasterizer, approximating a few of the visual wins a path tracer
   gives "for free" while staying interactive (smooth orbit + multi-turn
   editing, no offline/progressive rendering):
-  - **Image-based lighting** — `PMREMGenerator` + `RoomEnvironment` bakes a
-    procedural environment map once at startup (no external HDR file
-    needed), so glass/metal materials (the `building` card, car paint,
-    fountain water) get believable reflections instead of flat unlit color.
+  - **Image-based lighting** — `PMREMGenerator` convolves the real HDR
+    photo in `assets/env/` (see `js/envLighting.js`, credit in
+    `assets/env/ATTRIBUTION.md`) once at startup, so glass/metal materials
+    (the `building` card, car paint, fountain water) get believable
+    photographic reflections instead of flat unlit color. Falls back to the
+    procedural `RoomEnvironment` if the HDR fails to load, and the same
+    photo is shown as the visible sky background by default.
   - **SSAO** (`SSAOPass`, composer only) — cheap screen-space ambient
     occlusion for natural-looking contact shadows in corners/creases;
     rendered at half resolution and upscaled to keep the cost down.
@@ -65,9 +70,12 @@ framework, no build step.
     reallocation.
 
   All post-processing passes (`EffectComposer`, `RenderPass`, `SSAOPass`,
-  `UnrealBloomPass`, `OutputPass`) are vendored locally under
+  `UnrealBloomPass`, `SMAAPass`, `BokehPass`, `ShaderPass` cinematic grade,
+  `OutputPass`) are vendored locally under
   `js/vendor/three/examples/jsm/`, same as the rest of three.js — no CDN
-  dependency.
+  dependency. WebGPU (`three.webgpu.js` / `three.tsl.js`) is vendored too
+  but intentionally unused — `app.js` hardcodes WebGL after a confirmed
+  real-hardware driver crash on WebGPU; see `js/renderBackend.js`.
 - **Layout Engine** (`js/layoutEngine.js`) — resolves semantic relations
   (`beside`, `behind`, `in_front_of`, `on_top_of`, `scattered_around`) into
   coordinates, with the v3 fallback for invalid/circular references
@@ -77,7 +85,7 @@ framework, no build step.
 - **Multi-turn editing** — every turn sends the current Scene State summary
   + prompt to the server; the model (or mock) replies with
   `add`/`modify`/`remove` actions. §4
-- **PHP API proxy** (`api/generate.php` + `api/lib/*`) — three active
+- **PHP API proxy** (`api/generate.php` + `api/lib/*`) — four active
   layers:
   - Rate limiting per IP (SQLite, 10 req/60s) + daily budget cap. §3.3b/c
   - Input validation: 500-char cap + prompt-injection keyword heuristic.
@@ -129,8 +137,9 @@ immediately in mock mode, no API key needed.
 ## Configuring a real LLM (optional)
 
 1. Copy `public_html/api/config/secrets.example.php` to
-   `public_html/api/config/secrets.php` if you haven't already (this repo
-   ships a working `secrets.php` already in mock mode).
+   `public_html/api/config/secrets.php` if you haven't already (the repo
+   does not ship `secrets.php` — it is git-ignored; without it the app
+   simply runs in mock mode).
 2. Fill in `CLAUDE_API_KEY` (from https://console.anthropic.com/) and/or
    `OPENAI_API_KEY`, then set `PROVIDER` to `'claude'` or `'openai'`.
 3. Reload the app — prompts now go to the live API. If the API call ever
